@@ -20,6 +20,8 @@
 	<string>MacOSX</string>
 	<key>PlexFrameworkVersion</key>
 	<string>1</string>
+	<key>PlexMediaContainer</key>
+	<string>Silverlight</string>
 	<key>PlexPluginDebug</key>
 	<string>1</string>
 	<key>PlexPluginMode</key>
