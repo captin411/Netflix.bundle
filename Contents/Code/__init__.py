@@ -942,12 +942,15 @@ def BuildPlayerUrl(sender,url='',mode='restart',forcePlay=False,setCookiePref=Fa
     if cookieallow or forcePlay:
         url = getPlayerUrl(url,mode)
 
-        key = WebVideoItem(url).key.replace('.','%2E')
-
+        key = WebVideoItem(url).key
+        key = key[:16] + key[16:].replace('.','%2E')
+        PMS.Log("NEW KEY: " + key)
+         
         if VIDEO_IN_BROWSER:
             webbrowser.open(url,new=1,autoraise=True)
         else:
-            return Redirect(key)
+            return Redirect(WebVideoItem(url))
+            #return Redirect(key)
     else:
         return CookieWarning(sender,url,mode)
 
