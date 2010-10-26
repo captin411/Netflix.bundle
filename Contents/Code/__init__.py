@@ -1068,7 +1068,9 @@ class NetflixSession():
 
     def getAccessToken(self):
         tok = Data.LoadObject(self.__TOKEN_KEY)
-        tok.app_name = 'Plex'
+        if tok != None:
+            tok.app_name = 'Plex'
+            PMS.Log(repr(tok.__dict__))
         return tok
     def setAccessToken(self, tokObj):
         if tokObj == None:
