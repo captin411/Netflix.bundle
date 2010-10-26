@@ -31,7 +31,7 @@ class NetflixAuthToken(oauth.OAuthToken):
     user_id = None
 
     def __init__(self, key, secret, app_name=None, user_id=None):
-        self.app_name = app_name
+        self.app_name = 'Plex'
         self.user_id = user_id
         oauth.OAuthToken.__init__(self, key, secret)
 

@@ -349,9 +349,10 @@ def ChildTitlesMenu(sender,parentId=None,query=None):
 
 def UserQueueMenu(sender,max=50,start=0,replaceParent=False):
     dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="InfoList", title1=sender.title1, title2=sender.itemTitle) 
-    userFeedXML = HTTP.Request(netflix.NetflixRequest().get_user_feeds(GlobalNetflixSession.accessToken, urlBack=True), cacheTime=0)
-    instantFeed = XML.ElementFromString(userFeedXML).xpath("//link[@title='Instant Queue']")[0]
-    dir = populateFromFeed(instantFeed.get("href"), dir, False, True, max=max,start=start,replaceParent=replaceParent)
+
+    at = GlobalNetflixSession.getAccessToken()
+    instantFeedURL = "http://api.netflix.com/users/%s/queues/instant" % at.user_id
+    dir = populateFromFeed(instantFeedURL, dir, False, True, max=max,start=start,replaceParent=replaceParent, encrypt=True)
     if dir is None or len(dir) == 0:
         return MessageContainer(sender.itemTitle,'No movie or TV shows found')
     dir.nocache = 1
@@ -467,15 +468,21 @@ def nonRecommendationFeeds():
 
 
 ## internal helpers
-def populateFromFeed(url, dir, titleSort=True, setAllInstant=False, max=50, start=0, replaceParent=False):
+def populateFromFeed(url, dir, titleSort=True, setAllInstant=False, max=50, start=0, replaceParent=False, encrypt=False):
 
-    global __inInstantQ
+    global __inInstantQ, GlobalNetflixSession
     if setAllInstant:
         __inInstantQ = {}
 
     dir.replaceParent = replaceParent
 
-    thisUrl = '%s&max_results=%s&start_index=%s' % (url,max,start)
+    if encrypt == False:
+        thisUrl = '%s&max_results=%s&start_index=%s' % (url,max,start)
+    else:
+        r = netflix.NetflixRequest()
+        at = GlobalNetflixSession.getAccessToken()
+        thisUrl = r._make_query(access_token=at,query=url,params={'max_results':max,'start_index':start,'output':'atom'},method="GET", returnURL=True)
+        PMS.Log('user feed oauth: %s' % thisUrl)
 
     # Use FeedFromString until the cacheTime bug with FeedFromURL is corrected
     xml  = HTTP.Request(thisUrl, headers={'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}, cacheTime=0)
@@ -1060,7 +1067,9 @@ class NetflixSession():
         pass
 
     def getAccessToken(self):
-        return Data.LoadObject(self.__TOKEN_KEY)
+        tok = Data.LoadObject(self.__TOKEN_KEY)
+        tok.app_name = 'Plex'
+        return tok
     def setAccessToken(self, tokObj):
         if tokObj == None:
             Data.Remove(self.__TOKEN_KEY)
@@ -1171,7 +1180,6 @@ class NetflixSession():
 
             at = r.get_access_token(reqToken)
             self.setAccessToken(at)
-            
             if not at:
                 return False
             else:
