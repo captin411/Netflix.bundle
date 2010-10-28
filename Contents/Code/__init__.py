@@ -72,6 +72,7 @@ def CreatePrefs():
     Prefs.Add(id='loginemail', type='text', default='', label='Login Email')
     Prefs.Add(id='password', type='text', default='', label='Password', option='hidden')
     Prefs.Add(id='cookieallow', type='bool', default=False, label='Allow Netflix Cookie')
+    Prefs.Add(id='safemode', type='bool', default=False, label='Safe Mode (try if video wont play)')
 
 def SetRating(key, rating):
     global __ratingCache
@@ -918,7 +919,7 @@ any more"""
     return MessageContainer(title,message)
 
 def getPlayerUrl(url='',mode='restart'):
-    if not HOSTED_MODE:
+    if not HOSTED_MODE or Prefs.Get('safemode'):
         return url
 
     PMS.Log("building movie url")
