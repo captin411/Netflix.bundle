@@ -58,8 +58,6 @@ def Start():
         pass
 
     Plugin.AddPrefixHandler(NETFLIX_PLUGIN_PREFIX, TopMenu, "Netflix", NETFLIX_ICON, NETFLIX_ART)
-    Plugin.AddViewGroup("InfoList", viewMode="InfoList", mediaType="items")
-    Plugin.AddViewGroup("List", viewMode="List", mediaType="items")
     MediaContainer.art = R(NETFLIX_ART)
     MediaContainer.ratingColor = "FFEE3725"
 
@@ -121,7 +119,7 @@ def TopMenu():
     if __hasSilverlight() == False:
       return MessageContainer('Error','Silverlight is required for the Netflix plug-in.\nPlease visit http://silverlight.net to install.')
 
-    dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="List", title1="Netflix") 
+    dir = MediaContainer(disabledViewModes=["Coverflow"], title1="Netflix") 
 
     try:
         loggedIn = GlobalNetflixSession.loggedIn()
@@ -158,7 +156,7 @@ def TopMenu():
 
 
 def MyRecommendations(sender):
-    dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="List", title1=sender.title1) 
+    dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1) 
     try:
         userfeeds = recommendationFeeds()
         for f in userfeeds:
@@ -178,7 +176,7 @@ http://www.netflix.com and sign up for free today!"""
     pass
 
 def PersonalFeed(sender,url=None):
-    dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="InfoList", title1=sender.title1) 
+    dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1) 
 
     at = GlobalNetflixSession.getAccessToken()
     uid = at.user_id
@@ -203,7 +201,7 @@ def Menu(sender,type=None):
         all_icon = 'icon-movie.png'
     elif type == 'TV':
         all_icon = 'icon-tv.png'
-    dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="List", title1=sender.title1) 
+    dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1) 
     dir.Append(Function(DirectoryItem(AlphaListMenu,"All %s" % type, thumb=R(all_icon)), type=type))
     dir.Append(Function(DirectoryItem(GenreListMenu,"%s by Genres" % type, thumb=R(NETFLIX_ICON)), type=type))
     dir.Append(Function(DirectoryItem(YearListMenu,"%s by Year" % type, thumb=R("icon-year.png")), type=type))
@@ -214,7 +212,7 @@ def Menu(sender,type=None):
 def AlphaListMenu(sender,type=None,query=None):
     if query is not None:
         # handle a query if one was given
-        dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="InfoList", title1=sender.title1, title2=query) 
+        dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=query) 
         try:
             items = RPC().getCachedAlpha(query, type)
         except Exception, e:
@@ -225,7 +223,7 @@ def AlphaListMenu(sender,type=None,query=None):
         dir = populateFromCatalog(items, dir)
     else:
         # list possible queries if none is given
-        dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="List", title1=sender.title1, title2=sender.itemTitle) 
+        dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=sender.itemTitle) 
         dir.Append(Function(DirectoryItem(AlphaListMenu,"#","#",thumb=R(NETFLIX_ICON)), type=type, query="#"))
         for letter in string.ascii_uppercase:
             dir.Append(Function(DirectoryItem(AlphaListMenu,"%s" % letter,letter,thumb=R(NETFLIX_ICON)), type=type, query=letter))
@@ -235,7 +233,7 @@ def AlphaListMenu(sender,type=None,query=None):
     
 def GenreListMenu(sender,type=None,query=None):
     if query is not None:
-        dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="InfoList", title1=sender.title1, title2=query[-1]) 
+        dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=query[-1]) 
         # get the video title in this genre 
         try:
             items = RPC().getCachedGenreTitles(query, type)
@@ -250,7 +248,7 @@ def GenreListMenu(sender,type=None,query=None):
           dir.Append(Function(DirectoryItem(GenreListMenu,"Sub-genre: %s" % genre, thumb=R(NETFLIX_ICON)), type=type, query=query + [ genre ]))
     else:
         # list possible queries if none is given
-        dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="List", title1=sender.title1, title2=sender.itemTitle) 
+        dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=sender.itemTitle) 
         try:
             genres = RPC().getGenres('__top__', type)
         except Exception, e:
@@ -266,7 +264,7 @@ def GenreListMenu(sender,type=None,query=None):
 def YearListMenu(sender,type=None,query=None):
     if query is not None:
         # handle a query if one was given
-        dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="InfoList", title1=sender.title1, title2=query) 
+        dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=query) 
         try:
             yearTitles = RPC().getCachedYearQuery(int(query), type)
         except Exception, e:
@@ -275,7 +273,7 @@ def YearListMenu(sender,type=None,query=None):
         dir = populateFromCatalog(yearTitles, dir)
     else:
         # list possible queries if none is given
-        dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="List", title1=sender.title1, title2=sender.itemTitle) 
+        dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=sender.itemTitle) 
         try:
             years = RPC().getAllYears(type)
         except Exception, e:
@@ -290,7 +288,7 @@ def YearListMenu(sender,type=None,query=None):
 def ActorListMenu(sender,type=None,query=None):
     if query is not None:
         # handle a query if one was given
-        dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="InfoList", title1=sender.title1, title2=sender.itemTitle) 
+        dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=sender.itemTitle) 
         try:
             actorTitles = RPC().getCachedActorQuery(query, type)
         except Exception, e:
@@ -300,7 +298,7 @@ def ActorListMenu(sender,type=None,query=None):
         dir = populateFromCatalog(actorTitles, dir)
     else:
         # list possible queries if none is given
-        dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="List", title1=sender.title1, title2=sender.itemTitle) 
+        dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=sender.itemTitle) 
         try:
             actors = RPC().getAllActors(type)
         except Exception, e:
@@ -315,7 +313,7 @@ def ActorListMenu(sender,type=None,query=None):
 def DirectorListMenu(sender,type=None,query=None):
     if query is not None:
         # handle a query if one was given
-        dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="InfoList", title1=sender.title1, title2=sender.itemTitle) 
+        dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=sender.itemTitle) 
         try:
             directorTitles = RPC().getCachedDirectorQuery(query, type)
         except Exception, e:
@@ -324,7 +322,7 @@ def DirectorListMenu(sender,type=None,query=None):
         dir = populateFromCatalog(directorTitles, dir)
     else:
         # list possible queries if none is given
-        dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="List", title1=sender.title1, title2=sender.itemTitle) 
+        dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=sender.itemTitle) 
         try:
             directors = RPC().getAllDirectors(type)
         except Exception, e:
@@ -335,7 +333,7 @@ def DirectorListMenu(sender,type=None,query=None):
     return dir
 
 def ChildTitlesMenu(sender,parentId=None,query=None):
-    dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="InfoList", title1=sender.title1, title2=sender.itemTitle) 
+    dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=sender.itemTitle) 
 
     try:
         childTitles = RPC().getChildrenOfTitle(parentId)
@@ -349,7 +347,7 @@ def ChildTitlesMenu(sender,parentId=None,query=None):
     return dir
 
 def UserQueueMenu(sender,max=50,start=0,replaceParent=False):
-    dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="InfoList", title1=sender.title1, title2=sender.itemTitle) 
+    dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=sender.itemTitle) 
 
     at = GlobalNetflixSession.getAccessToken()
     instantFeedURL = "http://api.netflix.com/users/%s/queues/instant" % at.user_id
@@ -360,7 +358,7 @@ def UserQueueMenu(sender,max=50,start=0,replaceParent=False):
     return dir
 
 def RecommendationsMenu(sender):
-    dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="InfoList", title1=sender.title1, title2=sender.itemTitle) 
+    dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=sender.itemTitle) 
     instantFeed = XML.ElementFromString(HTTP.Request(netflix.NetflixRequest().get_user_feeds(GlobalNetflixSession.accessToken, urlBack=True))).xpath("//link[@title='Recommendations']")[0]
     dir = populateFromFeed(instantFeed.get("href") + "&max_results=50", dir)
     if dir is None or len(dir) == 0:
@@ -368,7 +366,7 @@ def RecommendationsMenu(sender):
     return dir
 
 def SearchMenu(sender, query=None):
-    dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="InfoList", title1=sender.title1, title2=query) 
+    dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=query) 
 
     ids = []
     url = netflix.NetflixRequest().search_titles(GlobalNetflixSession.accessToken, query, max_results=100, urlBack=True, instantOnly=True)
@@ -783,7 +781,7 @@ def InstantMenu(sender, id=''):
             return TRY_AGAIN
         item = massageTitleInfo(rpcitem)
 
-    dir = MediaContainer(title1="Options",title2=sender.itemTitle,disabledViewModes=["Coverflow"], viewGroup="InfoList")
+    dir = MediaContainer(title1="Options",title2=sender.itemTitle,disabledViewModes=["Coverflow"])
 
     madeWebVid = False
 
@@ -963,7 +961,7 @@ def BuildPlayerUrl(sender,url='',mode='restart',forcePlay=False,setCookiePref=Fa
         return CookieWarning(sender,url,mode)
 
 def CookieWarning(sender,url,mode):
-    dir = MediaContainer(disabledViewModes=["Coverflow"], viewGroup="InfoList", title1=sender.title1, noHistory=True) 
+    dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, noHistory=True) 
     dir.Append(
         Function(WebVideoItem(
             BuildPlayerUrl,
