@@ -3,6 +3,10 @@ from PMS.Objects import *
 from PMS.Shortcuts import *
 
 import string, netflix, xmlrpclib, mod_xmlrpcTransport, traceback, re, time, os
+try:
+    from urlparse import parse_qsl
+except:
+    from cgi import parse_qsl
 import htmlentitydefs
 import webbrowser
 
@@ -22,7 +26,6 @@ ERROR                    = MessageContainer('Network Error','A Network error has
 VIDEO_IN_BROWSER         = False
 
 
-GlobalNetflixRPC      = None
 GlobalNetflixSession  = None
 
 __ratingCache         = {}
@@ -89,29 +92,7 @@ def SetRating(key, rating):
         __ratingCache[key] = item
         return MessageContainer("rated","ok: %s %s" % (item['id'], item['user_rating']))
     return MessageContainer("error","No key was provided")
-
-
     pass
-
-def RPC(cached=False):
-    global GlobalNetflixRPC
-    # note a simple bool test should not be done
-    # to prevent network problems
-    if not cached:
-        try:
-            return xmlrpclib.ServerProxy(NETFLIX_RPC_HOST,transport=mod_xmlrpcTransport.GzipPersistTransport())
-        except:
-            return None
-
-    if type(GlobalNetflixRPC) == type(None):
-        try:
-            GlobalNetflixRPC = xmlrpclib.ServerProxy(NETFLIX_RPC_HOST,transport=mod_xmlrpcTransport.GzipPersistTransport())
-        except Except, e:
-            PMS.Log(e)
-            GlobalNetflixRPC = None
-
-    return GlobalNetflixRPC
-
 
 # ================================================
 
@@ -178,12 +159,9 @@ http://www.netflix.com and sign up for free today!"""
 def PersonalFeed(sender,url=None):
     dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1) 
 
-    at = GlobalNetflixSession.getAccessToken()
-    uid = at.user_id
-    PMS.Log(url)
-    PMS.Log(uid)
+    PMS.Log('PersonalFeed: %s' % url)
     try:
-        items = RPC().getUserFeed(uid,at.to_string(),url)
+        items = getUserFeed(url)
     except Exception, e:
         PMS.Log("TRY_AGAIN: %s" % e)
         return TRY_AGAIN
@@ -336,7 +314,7 @@ def ChildTitlesMenu(sender,parentId=None,query=None):
     dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=sender.itemTitle) 
 
     try:
-        childTitles = RPC().getChildrenOfTitle(parentId)
+        childTitles = getChildrenOfTitle(parentId)
     except Exception, e:
         PMS.Log("TRY_AGAIN: %s" % e)
         return TRY_AGAIN
@@ -368,21 +346,19 @@ def RecommendationsMenu(sender):
 def SearchMenu(sender, query=None):
     dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=query) 
 
-    ids = []
-    url = netflix.NetflixRequest().search_titles(GlobalNetflixSession.accessToken, query, max_results=100, urlBack=True, instantOnly=True)
-    xml = XML.ElementFromURL(url)
-    for title in xml.xpath("//catalog_item"):
-        id = title.find("link").get('href').split("/")[-1]
-        ids.append(id)
+    url = netflix.NetflixRequest().search_titles(GlobalNetflixSession.accessToken, query, max_results=100, urlBack=True, instantOnly=True, expand='@title,@box_art,@synopsis,@seasons,@episodes')
+    xmlstr = HTTP.Request(url)
+    PMS.Log(xmlstr)
+    xml = XML.ElementFromString(xmlstr)
 
-    if len(ids) == 0:
+    items = []
+    for i in xml.xpath("//catalog_title"):
+        items.append( parseCatalogTitle(i) )
+
+    if len(items) == 0:
         return MessageContainer('Search','No titles found')
-    try:
-        titleList = RPC().getTitlesByIds(ids,False) # don't sort by title
-    except Exception, e:
-        PMS.Log("TRY_AGAIN: %s" % e)
-        return TRY_AGAIN
-    dir = populateFromCatalog(titleList, dir)
+ 
+    dir = populateFromCatalog(items, dir)
     if len(dir) == 0:
         return MessageContainer(sender.itemTitle,'No movie or TV shows found')
     return dir
@@ -395,15 +371,213 @@ def allUserFeeds():
     if __userFeedsCached is None:
         PMS.Log('userFeedsCached is None')
         PMS.Log("[5] INSTANT QUEUE CONTAINS %d items" % len(__inInstantQ))
-        at = GlobalNetflixSession.getAccessToken()
-        uid = at.user_id
-        userfeeds = RPC().getUserFeeds(uid,at.to_string())
+        userfeeds = getUserFeeds()
         PMS.Log("[6] INSTANT QUEUE CONTAINS %d items" % len(__inInstantQ))
         PMS.Log(userfeeds)
         Data.SaveObject('__userFeedsCached',userfeeds)
         __userFeedsCached = userfeeds
         PMS.Log("[7] INSTANT QUEUE CONTAINS %d items" % len(__inInstantQ))
     return __userFeedsCached
+
+def getUserFeeds():
+    PMS.Log("getUserFeeds")
+    req = netflix.NetflixRequest()
+    access_token = GlobalNetflixSession.getAccessToken()
+    url = "http://api.netflix.com/users/%s/lists" % access_token.user_id
+    feeds = []
+    try:
+        res = req._make_query(access_token=access_token, method="GET", query=url, params={ 'client': 'Plex' }, returnURL=False)
+    except Exception, e:
+        PMS.Log(repr(e.__dict__))
+        return feeds
+
+    xmlstr = res.read()
+    xml = XML.ElementFromString(xmlstr)
+    for i in xml.xpath("//list"):
+        PMS.Log(i)
+        try:
+           link = i.find("link")
+           item = {
+             'name': link.get('title'),
+             'url':  link.get('href'),
+           }
+           feeds.append(item)
+           continue
+        except Exception, e:
+           PMS.Log(e)
+           continue
+    return feeds
+
+def getChildrenOfTitle(url):
+    return getTitleInfo(url)
+
+def getTitleInfo(url):
+    req = netflix.NetflixRequest()
+    access_token = GlobalNetflixSession.getAccessToken()
+
+    params = {}
+    params['expand'] = '@title,@box_art,@synopsis,@seasons,@episodes'
+
+    res = req._make_query(access_token=access_token, method="GET", query=url, params=params, returnURL=False)
+    xmlstr = res.read()
+    xml = XML.ElementFromString(xmlstr)
+    PMS.Log(xmlstr)
+    pass
+
+def getUserFeed(url):
+
+    url,paramStr = url.split('?')
+
+    params = {}
+    try:
+        p = parse_qsl(paramStr)
+        for i in p:
+           params[i[0]] = i[1]
+    except Exception, e:
+        PMS.Log(e)
+        return []
+
+    params['max_results'] = 100
+    params['expand'] = '@title,@box_art,@synopsis,@seasons,@episodes'
+
+    req = netflix.NetflixRequest()
+    a   = GlobalNetflixSession.getAccessToken()
+    try:
+        res = req._make_query(access_token=a, method="GET", query=url, params=params, returnURL=False)
+    except Exception, e:
+        PMS.Log(repr(e.__dict__))
+        return []
+
+    xmlstr = res.read()
+    items = []
+    xml = XML.ElementFromString(xmlstr)
+    for i in xml.xpath("//catalog_title"):
+        items.append( parseCatalogTitle(i) )
+
+    return items
+
+def parseCatalogTitle(item):
+
+    try:
+        href = item.xpath(".//id/text()")[0]
+    except:
+        href = ''
+
+    parts = href.split('/')
+    type = parts[5]
+    id   = parts[-1]
+    if parts[-2] == 'seasons':
+        type = 'seasons'
+
+    try:
+        synopsis = item.xpath('.//synopsis/text()')[0]
+        synopsis = re.sub(r'<[^>]+>','',synopsis)
+    except:
+        synopsis = ''
+
+    try:
+        runtime = item.xpath('.//runtime/text()')[0]
+    except:
+        runtime = '0'
+
+    try:
+        title = item.xpath(".//title")[0].get('short')
+    except:
+        title = ''
+
+    BOX_ART_PREFS = [
+        'http://schemas.netflix.com/catalog/titles/box_art.hd.iw',
+        'http://schemas.netflix.com/catalog/titles/box_art.hd',
+        'http://schemas.netflix.com/catalog/titles/box_art.large',
+        'http://schemas.netflix.com/catalog/titles/box_art.medium',
+        'http://schemas.netflix.com/catalog/titles/box_art.small'
+    ]
+    box_art = ''
+    try:
+        art_options = {}
+        arts = item.xpath(".//box_art/link")
+        for o in arts:
+            art_options[ o.get('rel') ] = o.get('href')
+        for o in BOX_ART_PREFS:
+            if o in art_options:
+                box_art = art_options[o]
+                break
+    except Exception, e:
+        pass
+
+    rating = '0.0'
+    try:
+        rating = item.xpath(".//average_rating")[0].text
+    except:
+        pass
+
+    actors = [ i.attrib for i in item.xpath(".//link[@rel='http://schemas.netflix.com/catalog/people.cast']/people/link") ]
+    directors = [ i.attrib for i in item.xpath(".//link[@rel='http://schemas.netflix.com/catalog/people.directors']/people/link") ]
+    series = [ i.attrib for i in item.xpath(".//link[@rel='http://schemas.netflix.com/catalog/title.series']") ]
+    seasons = [ i.attrib for i in item.xpath(".//link[@rel='http://schemas.netflix.com/catalog/title.season']") ]
+    genres = [ i.attrib for i in item.xpath(".//category[@scheme='http://api.netflix.com/categories/genres']") ]
+
+    parent_href = ''
+    if type == 'programs':
+        if len(seasons) >= 1:
+            parent_href = seasons[0]['href']
+        elif len(series) >= 1:
+            parent_href = series[0]['href']
+        else:
+            logging.error("Expecting at least one season or series link for: %s" % href)
+            logging.error(xml)
+            parent_href = 'BAD_HREF'
+
+        pass
+    elif type == 'seasons':
+        if len(series) == 0:
+            logging.error("Expecting a series link for: %s" % href)
+            logging.error(xml)
+            parent_href = 'BAD_HREF'
+        else:
+            parent_href = series[0]['href']
+
+
+
+
+    parsed = {}
+    parsed['title'] = title
+    parsed['type']  = type
+    parsed['movieId'] = id
+    parsed['nf_synopsis'] = synopsis
+    parsed['nf_duration'] = runtime
+    parsed['mpaa_tv_rating'] = rating
+    parsed['href'] = href
+    parsed['parent_href'] = parent_href
+    parsed['nf_boxart'] = box_art
+    parsed['nf_rating'] = rating
+  
+    try:
+        parsed['release_year'] = item.xpath('.//release_year')[0].text
+    except:
+        parsed['release_year'] = ''
+
+    try:
+        parsed['nf_tv_rating'] = item.xpath(".//category[@scheme='http://api.netflix.com/categories/tv_ratings']")[0].get('label')
+    except:
+        parsed['nf_tv_rating'] = ''
+
+    try:
+        parsed['nf_mpaa_rating'] = item.xpath(".//category[@scheme='http://api.netflix.com/categories/mpaa_ratings']")[0].get('label')
+    except:
+        parsed['nf_mpaa_rating'] = ''
+
+    PMS.Log(repr(parsed))
+
+    return parsed
+    
+
+def parseCatalogItem(item):
+
+    title = item.xpath(".//catalog_title")[0]
+    return parseCatalogTitle(title)
+
+
 
 def isFeedBasedOnYou(f):
     if re.match(r'New Arrivals',f['name']):
