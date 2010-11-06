@@ -13,13 +13,17 @@ CACHE_TIME               = 3600
 WI_PLAYER_URL            = "http://www.netflix.com/WiPlayer?movieid=%s"
 NETFLIX_ART              = 'art-default.png'
 NETFLIX_ICON             = 'icon-default.png'
+
+# functionality options
 HOSTED_MODE              = True
+ALLOW_SAFE_MODE          = False
+VIDEO_IN_BROWSER         = False
+##
 
 NO_ITEMS                 = MessageContainer('No Results','No Results')
 TRY_AGAIN                = MessageContainer('Error','An error has happened. Please try again later.')
 ERROR                    = MessageContainer('Network Error','A Network error has occurred')
 
-VIDEO_IN_BROWSER         = False
 
 
 GlobalNetflixRPC      = None
@@ -70,7 +74,8 @@ def CreatePrefs():
     Prefs.Add(id='loginemail', type='text', default='', label='Login Email')
     Prefs.Add(id='password', type='text', default='', label='Password', option='hidden')
     Prefs.Add(id='cookieallow', type='bool', default=False, label='Allow Netflix Cookie')
-    Prefs.Add(id='safemode', type='bool', default=False, label='Safe Mode (try if video wont play)')
+    if ALLOW_SAFE_MODE:
+        Prefs.Add(id='safemode', type='bool', default=False, label='Safe Mode (try if video wont play)')
 
 def SetRating(key, rating):
     global __ratingCache
@@ -917,7 +922,7 @@ any more"""
     return MessageContainer(title,message)
 
 def getPlayerUrl(url='',mode='restart'):
-    if not HOSTED_MODE or Prefs.Get('safemode'):
+    if not HOSTED_MODE or ( ALLOW_SAFE_MODE and Prefs.Get('safemode') ):
         return url
 
     PMS.Log("building movie url")
