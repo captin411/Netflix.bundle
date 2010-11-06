@@ -25,7 +25,7 @@ ERROR                    = MessageContainer('Network Error','A Network error has
 
 VIDEO_IN_BROWSER         = False
 
-
+GlobalNetflixRPC      = None
 GlobalNetflixSession  = None
 
 __ratingCache         = {}
@@ -94,6 +94,28 @@ def SetRating(key, rating):
     return MessageContainer("error","No key was provided")
     pass
 
+
+def RPC(cached=False):
+    global GlobalNetflixRPC
+    # note a simple bool test should not be done
+    # to prevent network problems
+    if not cached:
+        try:
+            return xmlrpclib.ServerProxy(NETFLIX_RPC_HOST,transport=mod_xmlrpcTransport.GzipPersistTransport())
+        except:
+            return None
+
+    if type(GlobalNetflixRPC) == type(None):
+        try:
+            GlobalNetflixRPC = xmlrpclib.ServerProxy(NETFLIX_RPC_HOST,transport=mod_xmlrpcTransport.GzipPersistTransport())
+        except Except, e:
+            PMS.Log(e)
+            GlobalNetflixRPC = None
+
+    return GlobalNetflixRPC
+
+
+
 # ================================================
 
 def TopMenu():
@@ -113,8 +135,9 @@ def TopMenu():
         return ERROR
 
     if loggedIn:
-        dir.Append(Function(DirectoryItem(Menu,"Browse Movies", thumb=R("icon-movie.png")), type="Movies"))
-        dir.Append(Function(DirectoryItem(Menu,"Browse TV", thumb=R("icon-tv.png")), type="TV"))
+        if RPC() is not None:
+            dir.Append(Function(DirectoryItem(Menu,"Browse Movies", thumb=R("icon-movie.png")), type="Movies"))
+            dir.Append(Function(DirectoryItem(Menu,"Browse TV", thumb=R("icon-tv.png")), type="TV"))
         dir.Append(Function(DirectoryItem(UserQueueMenu,"Your Instant Watch Queue", thumb=R("icon-queue.png"))))
         try:
             otherFeeds = nonRecommendationFeeds()
