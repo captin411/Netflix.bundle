@@ -361,7 +361,7 @@ def UserQueueMenu(sender,max=50,start=0,replaceParent=False):
 def SearchMenu(sender, query=None):
     dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=query) 
 
-    url = netflix.NetflixRequest().search_titles(GlobalNetflixSession.accessToken, query, max_results=100, urlBack=True, instantOnly=True, expand='@title,@box_art,@synopsis,@seasons,@episodes')
+    url = netflix.NetflixRequest().search_titles(GlobalNetflixSession.accessToken, query, max_results=100, urlBack=True, instantOnly=True, expand='@title,@box_art,@synopsis,@seasons,@formats,@episodes')
     xmlstr = HTTP.Request(url)
     xml = XML.ElementFromString(xmlstr)
 
@@ -430,7 +430,7 @@ def getTitleInfo(url):
     access_token = GlobalNetflixSession.getAccessToken()
 
     params = {}
-    params['expand'] = '@title,@box_art,@synopsis,@seasons,@episodes,@episode'
+    params['expand'] = '@title,@box_art,@synopsis,@seasons,@formats,@episodes,@episode'
 
     res = req._make_query(access_token=access_token, method="GET", query="%s" % url, params=params, returnURL=True)
     xml = XML.ElementFromURL(res)
@@ -441,7 +441,7 @@ def getTitleEpisodes(url):
     access_token = GlobalNetflixSession.getAccessToken()
 
     params = {}
-    params['expand'] = '@title,@box_art,@synopsis,@seasons,@episodes,@episode'
+    params['expand'] = '@title,@box_art,@synopsis,@seasons,@formats,@episodes,@episode'
 
 
     res = req._make_query(access_token=access_token, method="GET", query="%s/episodes" % url, params=params, returnURL=True)
@@ -465,7 +465,7 @@ def getUserFeed(url):
         return []
 
     params['max_results'] = 100
-    params['expand'] = '@title,@box_art,@synopsis,@seasons,@episodes,@episode'
+    params['expand'] = '@title,@box_art,@synopsis,@seasons,@formatsn@episodes,@episode'
 
     req = netflix.NetflixRequest()
     a   = GlobalNetflixSession.getAccessToken()
@@ -546,6 +546,10 @@ def parseCatalogTitle(item):
     except:
         pass
 
+    delivery_formats = {}
+    for i in item.xpath(".//category[@scheme='http://api.netflix.com/categories/title_formats']"):
+        delivery_formats[ str(i.attrib['label']).lower() ] = True
+
     actors = [ i.attrib for i in item.xpath(".//link[@rel='http://schemas.netflix.com/catalog/people.cast']/people/link") ]
     directors = [ i.attrib for i in item.xpath(".//link[@rel='http://schemas.netflix.com/catalog/people.directors']/people/link") ]
     series = [ i.attrib for i in item.xpath(".//link[@rel='http://schemas.netflix.com/catalog/title.series']") ]
@@ -586,6 +590,7 @@ def parseCatalogTitle(item):
     parsed['parent_href'] = parent_href
     parsed['nf_boxart'] = box_art
     parsed['nf_rating'] = rating
+    parsed['delivery_formats'] = delivery_formats
   
     try:
         parsed['release_year'] = item.xpath('.//release_year')[0].text
@@ -629,7 +634,7 @@ def videoIsInQ(item):
         r = netflix.NetflixRequest()
         at = GlobalNetflixSession.getAccessToken()
         instant_url = 'http://api.netflix.com/users/%s/queues/instant' % at.user_id
-        thisUrl = r._make_query(access_token=at,query=instant_url,params={'expand':'@title,@box_art,@synopsis,@seasons,@episodes,@episode'},method="GET", returnURL=True)
+        thisUrl = r._make_query(access_token=at,query=instant_url,params={'expand':'@title,@box_art,@synopsis,@seasons,@formats,@episodes,@episode'},method="GET", returnURL=True)
         xmlstr = HTTP.Request(thisUrl)
         PMS.Log(xmlstr)
         root = XML.ElementFromString(xmlstr)
@@ -647,7 +652,6 @@ def videoIsInQ(item):
                 'position': pos,
                 'id': id
             }
-            PMS.Log(repr(__inInstantQ))
 
     PMS.Log("SIZE OF INSTANT QUEUE IS %d" % len(__inInstantQ))
     if item['href'] in __inInstantQ:
@@ -686,7 +690,7 @@ def populateFromFeed(url, dir, titleSort=True, setAllInstant=False, max=50, star
     at = GlobalNetflixSession.getAccessToken()
 
     # dont use HTTP.Request... avoid caching
-    res = r._make_query(access_token=at,query=url,params={'max_results':max,'start_index':start,'expand':'@title,@box_art,@synopsis,@seasons,@episodes,@episode'},method="GET", returnURL=False)
+    res = r._make_query(access_token=at,query=url,params={'max_results':max,'start_index':start,'expand':'@title,@box_art,@synopsis,@seasons,@formats,@episodes,@episode'},method="GET", returnURL=False)
     xmlstr = res.read()
     feed = XML.ElementFromString(xmlstr)
 
@@ -791,6 +795,9 @@ def massageTitleInfo(t):
     if duration > 0 or title_rating != '':
         summary = "\n%s" % summary
 
+    dfs = t.get('delivery_formats',{'instant': True})
+    is_instant = dfs.get('instant',False)
+
     item = {
         'id': id,
         'movieId': t['movieId'],
@@ -801,6 +808,7 @@ def massageTitleInfo(t):
         'summary': summary,
         'art': '',
         'duration': duration,
+        'is_instant': is_instant,
         'rating': rating,
         'rating_user': user_rating,
         'mpaa_tv_rating': title_rating,
@@ -973,7 +981,6 @@ def InstantMenu(sender, url=''):
     dir = MediaContainer(title1="Options",title2=sender.itemTitle,disabledViewModes=["Coverflow"])
 
     madeWebVid = False
-
     if item['type'] in ['programs','movies']:
         bookmark = 0
         try:
@@ -988,7 +995,6 @@ def InstantMenu(sender, url=''):
             PMS.Log(e)
             pass
 
-        PMS.Log("bookmark: %d" % bookmark)
         bookmark = bookmark * 1000
 
         if bookmark > 0:
@@ -1150,6 +1156,9 @@ def BuildPlayerUrl(sender,url='',mode='restart',forcePlay=False,setCookiePref=Fa
     else:
         return CookieWarning(sender,url,mode)
 
+def NoInstantAvailable(sender,url,mode):
+    return MessageContainer('Sorry','This title is no longer available for instant watch')
+
 def CookieWarning(sender,url,mode):
     dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, noHistory=True) 
     dir.Append(
@@ -1172,15 +1181,28 @@ def CookieWarning(sender,url,mode):
 
 
 def makeWebvideoItem(item={},mode='restart'):
-
     cookieallow = Prefs.Get('cookieallow')
     summary = item['summary']
     if item['type'] != 'programs' and item['duration'] > 0:
         summary = "Runtime: %s\n%s" % (msToRuntime(item['duration']),summary)
     if item['mpaa_tv_rating']:
         summary = "Rating: %s\n%s" % (item['mpaa_tv_rating'],summary)
-    if cookieallow:
-
+    if item['is_instant'] is False:
+        infoLabel = msToRuntime(item['duration'])
+        wvi = Function(DirectoryItem(
+            NoInstantAvailable,
+            item['title'],
+            summary=summary,
+            subtitle=item['subtitle'],
+            duration=item['duration'],
+            infoLabel=infoLabel,
+            thumb=item['thumb'],
+            art=item['art'],
+            rating=item['rating'],
+            userRating=item['rating_user'],
+            ratingKey=item['href'],
+        ),url="%s"%item['url'],mode=mode)
+    elif cookieallow:
         wvi = Function(WebVideoItem(
             BuildPlayerUrl,
             item['title'],
