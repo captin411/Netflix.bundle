@@ -356,7 +356,7 @@ def UserQueueMenu(sender,max=50,start=0,replaceParent=False):
     dir = MediaContainer(disabledViewModes=["Coverflow"], title1=sender.title1, title2=sender.itemTitle) 
 
     at = GlobalNetflixSession.getAccessToken()
-    instantFeedURL = "http://api.netflix.com/users/%s/queues/instant" % at.user_id
+    instantFeedURL = "http://api.netflix.com/users/%s/queues/instant/available" % at.user_id
     dir = populateFromFeed(instantFeedURL, dir, False, True, max=max,start=start,replaceParent=replaceParent)
     if dir is None or len(dir) == 0:
         return MessageContainer(sender.itemTitle,'No movie or TV shows found')
